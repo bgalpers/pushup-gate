@@ -4,236 +4,595 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
 <meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="theme-color" content="#0a2540">
 <title>Push-up Gate</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
-<link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@500;700&family=Inter:wght@400;600&display=swap" rel="stylesheet">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600&family=Source+Code+Pro:wght@400;500&display=swap" rel="stylesheet">
 <style>
-/* Layout: one screen — camera fills the top, counter + controls dock at the bottom */
+/* Layout: three full-height screens (start · workout · done). Start/done sit on a skewed brand band;
+   workout is camera-first with a docked counter. 4px spacing grid. */
 :root{
-  --bg:#0d1012; --panel:#161b1f; --line:#273038; --fg:#eef2f4; --muted:#8b98a3;
-  --accent:#ffb020; --good:#3ddc84; --bad:#ff5a5f;
-  --display:"Space Grotesk",system-ui,sans-serif; --body:"Inter",system-ui,sans-serif;
-  color-scheme:dark;
+  --bg:#f6f9fc; --card:#ffffff; --line:#e3e8ee; --track:#eef1f6;
+  --ink:#0a2540; --ink-2:#425466; --ink-3:#6b7c93;
+  --brand:#533afd; --brand-2:#7a5cff; --brand-soft:#ecebff; --on-brand:#ffffff;
+  --warm:#ff6118; --warm-soft:#fff0e8;
+  --good:#00a85a; --good-soft:#dcf7ea; --bad:#df1b41;
+  --band:linear-gradient(100deg,#533afd 0%,#7a5cff 38%,#ff6118 76%,#ffb06b 100%);
+  --shadow:0 2px 5px rgba(50,50,93,.06),0 1px 1px rgba(0,0,0,.04);
+  --shadow-lg:0 30px 60px -12px rgba(50,50,93,.25),0 18px 36px -18px rgba(0,0,0,.3);
+  --sans:"Inter",-apple-system,"SF Pro Text",system-ui,sans-serif;
+  --mono:"Source Code Pro",ui-monospace,SFMono-Regular,Menlo,monospace;
+  --r-sm:6px; --r-md:10px; --r-lg:18px;
+  --ease:cubic-bezier(.25,1,.5,1);
+  color-scheme:light;
 }
-*{box-sizing:border-box}
+@media (prefers-color-scheme:dark){:root{
+  --bg:#0a1628; --card:#11223b; --line:#1f3456; --track:#1a2c48;
+  --ink:#f6f9fc; --ink-2:#b4c2d6; --ink-3:#8296b3;
+  --brand:#8b7bff; --brand-2:#a596ff; --brand-soft:#232a66; --on-brand:#0a1628;
+  --warm:#ff8a4c; --warm-soft:#3a2216;
+  --good:#3ddc97; --good-soft:#10392d; --bad:#ff6b85;
+  --band:linear-gradient(100deg,#3d27c9 0%,#5b3fe0 38%,#c74a12 76%,#d98745 100%);
+  --shadow:0 2px 6px rgba(0,0,0,.35);
+  --shadow-lg:0 30px 60px -12px rgba(0,0,0,.7);
+  color-scheme:dark;
+}}
+
+*{box-sizing:border-box;-webkit-tap-highlight-color:transparent}
 html,body{height:100%;margin:0}
-body{background:var(--bg);color:var(--fg);font-family:var(--body);font-size:15px;
-  padding:env(safe-area-inset-top,0px) max(16px,env(safe-area-inset-right,0px)) env(safe-area-inset-bottom,0px) max(16px,env(safe-area-inset-left,0px));
-  display:flex;flex-direction:column}
+body{background:var(--bg);color:var(--ink);font:400 15px/1.5 var(--sans);-webkit-font-smoothing:antialiased;overflow-x:hidden}
 [hidden]{display:none!important}
-header{display:flex;justify-content:space-between;align-items:center;padding-block:12px}
-h1{font-family:var(--display);font-size:18px;margin:0;letter-spacing:.02em}
-.pill{font-size:12px;padding:4px 10px;border-radius:99px;border:1px solid var(--line);color:var(--muted);text-transform:uppercase;letter-spacing:.08em}
-.pill.locked{color:var(--accent);border-color:var(--accent)}
-.pill.open{color:var(--good);border-color:var(--good)}
-.stage{position:relative;flex:1;min-height:240px;border-radius:14px;overflow:hidden;background:#000;border:1px solid var(--line)}
+.num{font-family:var(--mono);font-variant-numeric:tabular-nums}
+.eyebrow{font-size:11px;font-weight:600;letter-spacing:.1em;text-transform:uppercase;color:var(--ink-3);margin:0}
+
+.screen{min-height:100%;display:flex;flex-direction:column;position:relative;overflow:hidden;
+  padding-top:env(safe-area-inset-top,0px);padding-bottom:env(safe-area-inset-bottom,0px);
+  padding-left:max(16px,env(safe-area-inset-left,0px));padding-right:max(16px,env(safe-area-inset-right,0px))}
+.band{position:absolute;left:0;right:0;top:0;height:340px;background:var(--band);transform:skewY(-8deg);transform-origin:0 0;z-index:0}
+.band::after{content:"";position:absolute;inset:0;background:linear-gradient(180deg,transparent 30%,rgba(10,37,64,.18))}
+.inner{position:relative;z-index:1;width:100%;max-width:460px;margin:0 auto;display:flex;flex-direction:column;gap:16px;flex:1;padding-block:12px 24px}
+
+header{display:flex;align-items:center;justify-content:space-between;gap:12px;padding-block:8px}
+.mark{display:flex;align-items:center;gap:10px;font-weight:600;font-size:16px;letter-spacing:-.01em;color:#fff}
+.mark svg{width:28px;height:28px;flex:none}
+.status{display:inline-flex;align-items:center;gap:6px;font:500 12px var(--sans);letter-spacing:.04em;padding:5px 11px;border-radius:999px;background:rgba(255,255,255,.16);border:1px solid rgba(255,255,255,.28);color:#fff;backdrop-filter:blur(6px);-webkit-backdrop-filter:blur(6px)}
+.status i{width:7px;height:7px;border-radius:50%;background:#ffd2b8}
+.status.open i{background:#7dffc0}
+
+h1{font-weight:300;font-size:clamp(32px,9vw,42px);line-height:1.08;letter-spacing:-.035em;color:#fff;margin:12px 0 0;text-wrap:balance}
+.lede{color:rgba(255,255,255,.86);font-size:16px;font-weight:300;margin:0;max-width:36ch}
+
+.card{background:var(--card);border-radius:var(--r-lg);border:1px solid var(--line);box-shadow:var(--shadow)}
+.card.hero{box-shadow:var(--shadow-lg);border-color:transparent}
+.pad{padding:20px}
+
+/* progress ring */
+.ringbox{display:grid;grid-template-columns:auto minmax(0,1fr);gap:20px;align-items:center}
+.ring{position:relative;width:128px;height:128px;flex:none}
+.ring svg{width:100%;height:100%;transform:rotate(-90deg);display:block}
+.ring .t{stroke:var(--track)}
+.ring .f{stroke:url(#gradBrand);transition:stroke-dashoffset .7s var(--ease)}
+.ring.done .f{stroke:var(--good)}
+.ring .c{position:absolute;inset:0;display:grid;place-content:center;text-align:center}
+.ring .c b{font:300 34px/1 var(--sans);letter-spacing:-.03em}
+.ring .c small{font-size:11px;color:var(--ink-3);margin-top:4px;font-family:var(--mono)}
+.big{font:300 15px/1.45 var(--sans);color:var(--ink-2)}
+.big strong{display:block;font-weight:500;font-size:20px;letter-spacing:-.015em;color:var(--ink);margin-bottom:4px}
+
+/* week */
+.week{display:grid;grid-template-columns:repeat(7,minmax(0,1fr));gap:6px;margin-top:14px}
+.day{display:grid;justify-items:center;gap:6px}
+.day span{font:500 11px var(--mono);color:var(--ink-3)}
+.dot{width:30px;height:30px;border-radius:50%;border:1.5px dashed var(--line);display:grid;place-items:center;transition:transform .3s var(--ease)}
+.dot svg{width:14px;height:14px}
+.dot.done{background:var(--brand);border:0;color:var(--on-brand)}
+.dot.skipped{background:var(--warm-soft);border:1.5px solid var(--warm);color:var(--warm)}
+.dot.missed{border-style:solid;border-color:var(--line);background:var(--track)}
+.dot.today{box-shadow:0 0 0 3px var(--card),0 0 0 5px var(--brand)}
+.day.future .dot{opacity:.45}
+.streakrow{display:flex;align-items:center;justify-content:space-between;gap:12px}
+.streak{display:flex;align-items:baseline;gap:6px;font-size:13px;color:var(--ink-3)}
+.streak b{font:500 22px var(--mono);color:var(--warm)}
+
+/* tips */
+.tips{display:grid;gap:12px;margin:12px 0 0;padding:0;list-style:none;counter-reset:t}
+.tips li{display:grid;grid-template-columns:24px minmax(0,1fr);gap:12px;font-size:14px;color:var(--ink-2);line-height:1.45}
+.tips li::before{counter-increment:t;content:counter(t);width:24px;height:24px;border-radius:50%;background:var(--brand-soft);color:var(--brand);font:500 12px/24px var(--mono);text-align:center}
+.tips b{color:var(--ink);font-weight:500}
+
+/* buttons */
+.btn{font:500 16px/1 var(--sans);border:0;border-radius:var(--r-md);padding:17px 18px;width:100%;cursor:pointer;display:flex;align-items:center;justify-content:center;gap:8px;text-decoration:none;transition:transform .15s var(--ease),filter .15s,box-shadow .2s}
+.btn:active{transform:scale(.98)}
+.btn:focus-visible,.link:focus-visible{outline:3px solid var(--brand);outline-offset:3px}
+.btn.primary{background:var(--brand);color:var(--on-brand);box-shadow:0 8px 20px -6px color-mix(in srgb,var(--brand) 60%,transparent)}
+.btn.primary .arr{transition:transform .2s var(--ease)}
+.btn.primary:hover .arr{transform:translateX(3px)}
+.btn.good{background:var(--good);color:#fff;box-shadow:0 8px 20px -6px color-mix(in srgb,var(--good) 60%,transparent)}
+@media (prefers-color-scheme:dark){.btn.good{color:#06291c}}
+.btn.quiet{background:var(--card);color:var(--ink);border:1px solid var(--line);box-shadow:var(--shadow)}
+.btn:disabled{opacity:.6;cursor:progress}
+.link{all:unset;cursor:pointer;align-self:center;font-size:14px;color:var(--ink-3);padding:8px 12px;border-radius:var(--r-sm)}
+.link:hover{color:var(--ink)}
+.spacer{flex:1}
+.err{font-size:13px;color:var(--bad);background:color-mix(in srgb,var(--bad) 10%,transparent);border:1px solid color-mix(in srgb,var(--bad) 30%,transparent);border-radius:var(--r-md);padding:10px 12px;margin:0}
+
+/* workout */
+#workout{padding:0;background:#000}
+.stage{position:absolute;inset:0;background:#05080f}
 video,canvas{position:absolute;inset:0;width:100%;height:100%;object-fit:cover;transform:scaleX(-1)}
-.hint{position:absolute;left:12px;right:12px;bottom:12px;padding:8px 12px;border-radius:10px;background:rgba(13,16,18,.75);font-size:13px;text-align:center}
-.intro{position:absolute;inset:0;display:flex;flex-direction:column;justify-content:center;gap:12px;padding:24px;background:var(--panel)}
-.intro p{margin:0;color:var(--muted);line-height:1.5;max-width:60ch}
-.intro strong{color:var(--fg)}
-.dock{padding-block:14px 16px;display:grid;gap:12px}
-.count{display:flex;align-items:baseline;gap:10px;font-family:var(--display)}
-.count b{font-size:72px;line-height:1;font-variant-numeric:tabular-nums}
-.count span{font-size:22px;color:var(--muted)}
-.state{margin-left:auto;font-size:14px;font-family:var(--body);color:var(--muted);text-transform:uppercase;letter-spacing:.08em}
-.bar{height:8px;border-radius:99px;background:var(--line);overflow:hidden}
-.bar i{display:block;height:100%;width:0;background:var(--accent);transition:width .25s}
-.done .bar i{background:var(--good)}
-button,.btn{font:600 16px var(--body);border:0;border-radius:12px;padding:15px;width:100%;cursor:pointer;text-align:center;text-decoration:none;display:block}
-.primary{background:var(--accent);color:#1a1200}
-.unlock{background:var(--good);color:#04210f}
-.ghost{background:transparent;color:var(--muted);border:1px solid var(--line)}
-button:focus-visible,.btn:focus-visible{outline:3px solid var(--fg);outline-offset:2px}
-.err{color:var(--bad);font-size:13px}
-.confirm{background:var(--panel);border:1px solid var(--line);border-radius:12px;padding:14px;display:grid;gap:12px}
-.confirm p{margin:0;font-family:var(--display);font-size:20px;text-wrap:balance}
-.confirm .row{display:grid;grid-template-columns:1fr 1fr;gap:10px}
-.confirm.s2{border-color:var(--accent)} .confirm.s3{border-color:var(--bad)}
-.confirm.s3 p{color:var(--bad)}
-@media (prefers-reduced-motion:reduce){.bar i{transition:none}}
+.topbar{position:absolute;z-index:2;left:0;right:0;top:0;display:flex;justify-content:space-between;align-items:center;gap:12px;
+  padding-top:calc(env(safe-area-inset-top,0px) + 12px);padding-left:max(16px,env(safe-area-inset-left,0px));padding-right:max(16px,env(safe-area-inset-right,0px))}
+.glass{background:rgba(10,22,40,.55);backdrop-filter:blur(14px) saturate(1.4);-webkit-backdrop-filter:blur(14px) saturate(1.4);border:1px solid rgba(255,255,255,.14);color:#fff}
+.chip{font:500 13px var(--mono);padding:8px 12px;border-radius:999px}
+.chip.btnlike{cursor:pointer;font-family:var(--sans);display:inline-flex;align-items:center;gap:6px}
+.hint{position:absolute;z-index:2;left:50%;top:calc(env(safe-area-inset-top,0px) + 64px);transform:translateX(-50%);max-width:calc(100% - 32px);text-align:center;font-size:14px;padding:10px 14px;border-radius:var(--r-md)}
+.dock{position:absolute;z-index:2;left:0;right:0;bottom:0;
+  padding:16px max(16px,env(safe-area-inset-right,0px)) calc(env(safe-area-inset-bottom,0px) + 16px) max(16px,env(safe-area-inset-left,0px))}
+.dockcard{max-width:460px;margin:0 auto;border-radius:22px;padding:16px 18px;display:grid;grid-template-columns:auto minmax(0,1fr);gap:16px;align-items:center}
+.dockcard .ring{width:96px;height:96px}
+.dockcard .ring .t{stroke:rgba(255,255,255,.14)}
+.dockcard .ring .c b{font-size:30px;color:#fff}
+.dockcard .ring .c small{color:rgba(255,255,255,.6)}
+.cue{font:300 30px/1.05 var(--sans);letter-spacing:-.03em;margin:0;transition:color .2s}
+.cue.down{color:#ffb38a}.cue.up{color:#a9ffd6}.cue.idle{color:rgba(255,255,255,.75)}
+.meter{height:6px;border-radius:99px;background:rgba(255,255,255,.14);margin-top:12px;overflow:hidden;position:relative}
+.meter i{position:absolute;top:0;bottom:0;left:0;background:linear-gradient(90deg,#7a5cff,#ff8a4c);border-radius:inherit;transition:width .12s linear}
+.meter .mk{position:absolute;top:-2px;bottom:-2px;width:2px;background:rgba(255,255,255,.7)}
+.metalabel{display:flex;justify-content:space-between;font:400 11px var(--mono);color:rgba(255,255,255,.55);margin-top:6px}
+.paused{position:absolute;inset:0;z-index:3;display:grid;place-content:center;gap:16px;text-align:center;background:rgba(5,8,15,.6);backdrop-filter:blur(6px);-webkit-backdrop-filter:blur(6px);color:#fff;padding:24px}
+.paused p{font:300 28px var(--sans);letter-spacing:-.02em;margin:0}
+
+/* done */
+.celebrate{text-align:center;display:grid;justify-items:center;gap:12px}
+.celebrate .ring{width:168px;height:168px}
+.celebrate .ring .c b{font-size:44px}
+.celebrate h2{font-weight:300;font-size:28px;letter-spacing:-.03em;margin:4px 0 0}
+.celebrate p{margin:0;color:var(--ink-2);max-width:32ch}
+
+/* skip sheet */
+.scrim{position:fixed;inset:0;z-index:10;background:rgba(10,22,40,.45);backdrop-filter:blur(2px);-webkit-backdrop-filter:blur(2px);opacity:0;transition:opacity .25s}
+.scrim.on{opacity:1}
+.sheet{position:fixed;z-index:11;left:0;right:0;bottom:0;transform:translateY(105%);transition:transform .35s var(--ease)}
+.sheet.on{transform:none}
+.sheetcard{max-width:520px;margin:0 auto;background:var(--card);border-radius:22px 22px 0 0;border:1px solid var(--line);border-bottom:0;box-shadow:var(--shadow-lg);
+  padding:12px max(20px,env(safe-area-inset-right,0px)) calc(env(safe-area-inset-bottom,0px) + 20px) max(20px,env(safe-area-inset-left,0px));display:grid;gap:16px}
+.grab{width:40px;height:5px;border-radius:9px;background:var(--line);justify-self:center}
+.steps{display:flex;gap:6px}
+.steps i{flex:1;height:4px;border-radius:9px;background:var(--track);transition:background .3s}
+.sheet[data-step="1"] .steps i:nth-child(-n+1),
+.sheet[data-step="2"] .steps i:nth-child(-n+2){background:var(--warm)}
+.sheet[data-step="3"] .steps i{background:var(--bad)}
+.sheet h3{font-weight:300;font-size:26px;letter-spacing:-.03em;margin:0;text-wrap:balance}
+.sheet[data-step="3"] h3{color:var(--bad);font-weight:400}
+.sheet p{margin:0;color:var(--ink-2);font-size:14px}
+.sheet .row{display:grid;grid-template-columns:1fr 1fr;gap:10px}
+.btn.warn{background:transparent;color:var(--ink-2);border:1px solid var(--line)}
+.sheet[data-step="3"] .btn.warn{color:var(--bad);border-color:color-mix(in srgb,var(--bad) 45%,transparent)}
+
+.fade-in{animation:fi .45s var(--ease) both}
+@keyframes fi{from{opacity:0;transform:translateY(8px)}to{opacity:1;transform:none}}
+@keyframes pop{0%{transform:scale(1)}40%{transform:scale(1.08)}100%{transform:scale(1)}}
+.pop{animation:pop .3s var(--ease)}
+@media (prefers-reduced-motion:reduce){*,*::before,*::after{animation:none!important;transition:none!important}}
 </style>
 </head>
 <body>
-<header>
-  <h1>PUSH-UP GATE</h1>
-  <span id="pill" class="pill locked">Locked</span>
-</header>
 
-<div class="stage">
-  <video id="video" playsinline muted></video>
-  <canvas id="canvas"></canvas>
-  <div id="intro" class="intro">
-    <p><strong>100 push-ups, then the apps open.</strong></p>
-    <p>Lean the phone against something on the floor, about 1.5–2 m to your side, so it sees your whole body from the side: head, shoulders, elbows, wrists, hips.</p>
-    <p>A rep counts when your elbows bend past ~95° and then lock back out past ~150°, with your body horizontal.</p>
+<svg width="0" height="0" style="position:absolute" aria-hidden="true">
+  <defs>
+    <linearGradient id="gradBrand" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0%" stop-color="#7a5cff"/><stop offset="100%" stop-color="#ff6118"/>
+    </linearGradient>
+  </defs>
+</svg>
+
+<!-- START -->
+<section class="screen" id="start">
+  <div class="band" aria-hidden="true"></div>
+  <div class="inner">
+    <header>
+      <div class="mark">
+        <svg viewBox="0 0 28 28" fill="none" aria-hidden="true"><rect width="28" height="28" rx="8" fill="rgba(255,255,255,.2)"/><path d="M7 17.5h3.5l2.5-7 3 11 2.5-7H21" stroke="#fff" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>
+        Push-up Gate
+      </div>
+      <span class="status" id="statusStart"><i></i><span>Locked</span></span>
+    </header>
+
+    <div>
+      <h1 id="headline"><span id="goalH" style="font-variant-numeric:tabular-nums">100</span> push-ups, then your apps.</h1>
+      <p class="lede" style="margin-top:10px">Your phone counts every rep with the camera. Hit the number and your apps open for the day.</p>
+    </div>
+
+    <div class="card hero pad fade-in">
+      <div class="ringbox">
+        <div class="ring" id="ringStart">
+          <svg viewBox="0 0 120 120"><circle class="t" cx="60" cy="60" r="52" fill="none" stroke-width="10"/><circle class="f" cx="60" cy="60" r="52" fill="none" stroke-width="10" stroke-linecap="round" stroke-dasharray="326.73" stroke-dashoffset="326.73"/></svg>
+          <div class="c"><b class="num" data-reps>0</b><small>of <span data-goal>100</span></small></div>
+        </div>
+        <div class="big" id="startMsg"><strong>Not started</strong>Do them in as many sets as you like. Progress saves as you go.</div>
+      </div>
+
+      <div style="border-top:1px solid var(--line);margin:20px -20px 0;padding:16px 20px 0">
+        <div class="streakrow">
+          <p class="eyebrow">This week</p>
+          <div class="streak"><b class="num" id="streakN">0</b><span id="streakU">day streak</span></div>
+        </div>
+        <div class="week" id="week"></div>
+      </div>
+    </div>
+
+    <div class="card pad">
+      <p class="eyebrow">Setup</p>
+      <ol class="tips">
+        <li><span>Lean the phone on the floor <b>1.5–2 m to your side</b>, front camera facing you.</span></li>
+        <li><span>Make sure it sees your <b>head, arm and hips</b> from the side.</span></li>
+        <li><span>A rep counts when your elbow bends past <b class="num">95°</b> and locks out past <b class="num">150°</b>.</span></li>
+      </ol>
+    </div>
+
+    <p class="err" id="err" hidden></p>
+    <div class="spacer"></div>
+    <button class="btn primary" id="startBtn" type="button">Start camera <span class="arr" aria-hidden="true">→</span></button>
+    <button class="link" id="skipBtn" type="button">Skip today</button>
   </div>
-  <div id="hint" class="hint" hidden></div>
-</div>
+</section>
 
-<div class="dock" id="dock">
-  <div class="count"><b id="reps">0</b><span>/ <span id="goalTxt">100</span></span><div class="state" id="state">Ready</div></div>
-  <div class="bar"><i id="bar"></i></div>
-  <button id="start" class="primary">Start camera</button>
-  <a id="unlock" class="btn unlock" hidden href="shortcuts://run-shortcut?name=Pushups%20Done">Unlock my apps for today</a>
-  <button id="reset" class="ghost" hidden>Reset today's count</button>
-  <button id="skip" class="ghost">Skip today without push-ups</button>
-  <div id="confirm" class="confirm" hidden>
-    <p id="confirmQ"></p>
-    <div class="row">
-      <button id="no" class="primary">No, I'll do them</button>
-      <button id="yes" class="ghost"></button>
+<!-- WORKOUT -->
+<section class="screen" id="workout" hidden>
+  <div class="stage">
+    <video id="video" playsinline muted></video>
+    <canvas id="canvas"></canvas>
+  </div>
+  <div class="topbar">
+    <button class="glass chip btnlike" id="pauseBtn" type="button" aria-label="Pause">
+      <svg width="12" height="12" viewBox="0 0 12 12" aria-hidden="true"><rect x="2" y="1" width="3" height="10" rx="1" fill="currentColor"/><rect x="7" y="1" width="3" height="10" rx="1" fill="currentColor"/></svg>Pause
+    </button>
+    <span class="glass chip num" id="angleChip">—°</span>
+  </div>
+  <div class="hint glass" id="hint" hidden></div>
+  <div class="dock">
+    <div class="dockcard glass">
+      <div class="ring" id="ringWork">
+        <svg viewBox="0 0 120 120"><circle class="t" cx="60" cy="60" r="52" fill="none" stroke-width="10"/><circle class="f" cx="60" cy="60" r="52" fill="none" stroke-width="10" stroke-linecap="round" stroke-dasharray="326.73" stroke-dashoffset="326.73"/></svg>
+        <div class="c"><b class="num" data-reps>0</b><small>of <span data-goal>100</span></small></div>
+      </div>
+      <div style="min-width:0">
+        <p class="cue idle" id="cue">Get in position</p>
+        <div class="meter" aria-hidden="true"><i id="meterFill"></i><span class="mk" id="mkDown"></span><span class="mk" id="mkUp"></span></div>
+        <div class="metalabel"><span>bent</span><span>locked out</span></div>
+      </div>
     </div>
   </div>
-  <div id="err" class="err" hidden></div>
+  <div class="paused" id="paused" hidden>
+    <p>Paused</p>
+    <button class="btn primary" id="resumeBtn" type="button" style="min-width:220px">Resume</button>
+    <button class="link" id="exitBtn" type="button" style="color:rgba(255,255,255,.75)">End session</button>
+  </div>
+</section>
+
+<!-- DONE -->
+<section class="screen" id="done" hidden>
+  <div class="band" aria-hidden="true"></div>
+  <div class="inner">
+    <header>
+      <div class="mark">
+        <svg viewBox="0 0 28 28" fill="none" aria-hidden="true"><rect width="28" height="28" rx="8" fill="rgba(255,255,255,.2)"/><path d="M7 17.5h3.5l2.5-7 3 11 2.5-7H21" stroke="#fff" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>
+        Push-up Gate
+      </div>
+      <span class="status open"><i></i><span id="doneStatus">Unlocked</span></span>
+    </header>
+    <div style="height:40px"></div>
+    <div class="card hero pad fade-in">
+      <div class="celebrate">
+        <div class="ring done" id="ringDone">
+          <svg viewBox="0 0 120 120"><circle class="t" cx="60" cy="60" r="52" fill="none" stroke-width="10"/><circle class="f" cx="60" cy="60" r="52" fill="none" stroke-width="10" stroke-linecap="round" stroke-dasharray="326.73" stroke-dashoffset="326.73"/></svg>
+          <div class="c"><b class="num" data-reps>0</b><small>of <span data-goal>100</span></small></div>
+        </div>
+        <h2 id="doneTitle">Done for today.</h2>
+        <p id="doneMsg">Your apps are open until tomorrow morning.</p>
+      </div>
+      <div style="border-top:1px solid var(--line);margin:20px -20px 0;padding:16px 20px 0">
+        <div class="streakrow">
+          <p class="eyebrow">This week</p>
+          <div class="streak"><b class="num" id="streakN2">0</b><span id="streakU2">day streak</span></div>
+        </div>
+        <div class="week" id="week2"></div>
+      </div>
+    </div>
+    <div class="spacer"></div>
+    <a class="btn good" id="unlockBtn" href="shortcuts://run-shortcut?name=Pushups%20Done">Unlock my apps <span aria-hidden="true">→</span></a>
+  </div>
+</section>
+
+<!-- SKIP SHEET -->
+<div class="scrim" id="scrim" hidden></div>
+<div class="sheet" id="sheet" data-step="1" role="dialog" aria-modal="true" aria-labelledby="sheetQ" hidden>
+  <div class="sheetcard">
+    <div class="grab" aria-hidden="true"></div>
+    <div class="steps" aria-hidden="true"><i></i><i></i><i></i></div>
+    <h3 id="sheetQ">Are you sure?</h3>
+    <p id="sheetSub">Skipping unlocks your apps and breaks your streak.</p>
+    <div class="row">
+      <button class="btn primary" id="noBtn" type="button">I'll do them</button>
+      <button class="btn warn" id="yesBtn" type="button">Yes, skip</button>
+    </div>
+  </div>
 </div>
 
 <script type="module">
-const GOAL = Number(new URLSearchParams(location.search).get("goal")) || 100;
+const GOAL = (n => Number.isFinite(n) && n >= 1 ? Math.round(n) : 100)(parseFloat(new URLSearchParams(location.search).get("goal")));
 const DOWN_ANGLE = 95, UP_ANGLE = 150, MAX_BODY_TILT = 45, MIN_VIS = 0.5;
+const UNLOCK_URL = "shortcuts://run-shortcut?name=Pushups%20Done";
+const MP = "https://cdn.jsdelivr.net/npm/@mediapipe/tasks-vision@0.10.14";
+const MODEL = "https://storage.googleapis.com/mediapipe-models/pose_landmarker/pose_landmarker_lite/float16/1/pose_landmarker_lite.task";
 
 const $ = id => document.getElementById(id);
 const video = $("video"), canvas = $("canvas"), ctx = canvas.getContext("2d");
-$("goalTxt").textContent = GOAL;
+const reduceMotion = matchMedia("(prefers-reduced-motion: reduce)").matches;
 
-const today = () => new Date().toLocaleDateString("en-CA"); // yyyy-mm-dd, local time
-const store = {
-  get(){ try { const s = JSON.parse(localStorage.getItem("pushupGate")||"{}"); return s.date===today()?s.reps:0; } catch { return 0; } },
-  set(n){ try { localStorage.setItem("pushupGate", JSON.stringify({date:today(), reps:n})); } catch {} }
-};
+// ---------- storage ----------
+const dkey = d => d.toLocaleDateString("en-CA");          // yyyy-mm-dd, local
+const today = () => dkey(new Date());
+const read = (k, f) => { try { return JSON.parse(localStorage.getItem(k)) ?? f; } catch { return f; } };
+const write = (k, v) => { try { localStorage.setItem(k, JSON.stringify(v)); } catch {} };
+const getReps = () => { const s = read("pushupGate", {}); return s.date === today() ? (s.reps|0) : 0; };
+const setReps = n => write("pushupGate", { date: today(), reps: n });
+const getHist = () => read("pushupHistory", {});
+const mark = v => { const h = getHist(); h[today()] = v; write("pushupHistory", h); };
 
-let reps = store.get(), phase = "up", smooth = null, landmarker = null, running = false, audio = null, wakeLock = null;
-
-function render(){
-  $("reps").textContent = reps;
-  $("bar").style.width = Math.min(100, reps/GOAL*100) + "%";
-  const done = reps >= GOAL;
-  document.body.classList.toggle("done", done);
-  $("pill").textContent = done ? "Unlocked" : "Locked";
-  $("pill").className = "pill " + (done ? "open" : "locked");
-  $("unlock").hidden = !done;
-  $("reset").hidden = reps === 0;
-  $("skip").hidden = done;
-  if (done) $("confirm").hidden = true;
-  if (done) $("state").textContent = "Done";
+function streak(){
+  const h = getHist(), d = new Date();
+  if (!h[dkey(d)]) d.setDate(d.getDate() - 1);   // today still open: count from yesterday
+  let n = 0;
+  while (h[dkey(d)] === "done") { n++; d.setDate(d.getDate() - 1); }
+  return n;
 }
-render();
 
-function beep(freq=880, dur=.08){
+// ---------- UI pieces ----------
+const CIRC = 326.73;
+function setRing(el, value){
+  const p = Math.max(0, Math.min(1, value / GOAL));
+  el.querySelector(".f").style.strokeDashoffset = (CIRC * (1 - p)).toFixed(2);
+  el.querySelector("[data-reps]").textContent = value;
+}
+document.querySelectorAll("[data-goal]").forEach(e => e.textContent = GOAL);
+$("goalH").textContent = GOAL;
+
+const CHECK = '<svg viewBox="0 0 14 14" fill="none"><path d="M3 7.5l2.5 2.5L11 4.5" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>';
+const SLASH = '<svg viewBox="0 0 14 14" fill="none"><path d="M4 10L10 4" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg>';
+function renderWeek(el){
+  const h = getHist(), now = new Date(), t = today();
+  const mon = new Date(now); mon.setDate(now.getDate() - ((now.getDay() + 6) % 7));
+  let html = "";
+  for (let i = 0; i < 7; i++){
+    const d = new Date(mon); d.setDate(mon.getDate() + i);
+    const k = dkey(d), v = h[k], fut = k > t;
+    const cls = ["dot", v === "done" ? "done" : v === "skipped" ? "skipped" : (!fut && k !== t ? "missed" : ""), k === t ? "today" : ""].join(" ");
+    const label = d.toLocaleDateString("en-US", { weekday: "narrow" });
+    html += `<div class="day${fut ? " future" : ""}"><div class="${cls}" title="${d.toLocaleDateString("en-US",{weekday:"long"})}: ${v || (fut ? "upcoming" : k===t ? "today" : "missed")}">${v === "done" ? CHECK : v === "skipped" ? SLASH : ""}</div><span>${label}</span></div>`;
+  }
+  el.innerHTML = html;
+}
+function renderStreak(nEl, uEl){ const s = streak(); nEl.textContent = s; uEl.textContent = s === 1 ? "day streak" : "day streak"; }
+
+let reps = getReps();
+
+function show(id){
+  for (const s of ["start", "workout", "done"]) $(s).hidden = s !== id;
+  window.scrollTo(0, 0);
+}
+
+function renderStart(){
+  setRing($("ringStart"), reps);
+  renderWeek($("week")); renderStreak($("streakN"), $("streakU"));
+  const left = GOAL - reps;
+  $("startMsg").innerHTML = reps === 0
+    ? `<strong>Not started</strong>Do them in as many sets as you like. Progress saves as you go.`
+    : `<strong><span class="num">${left}</span> to go</strong>You're ${Math.round(reps / GOAL * 100)}% there. Pick up where you left off.`;
+  $("startBtn").innerHTML = (reps === 0 ? "Start camera" : "Keep going") + ' <span class="arr" aria-hidden="true">→</span>';
+}
+
+function renderDone(skipped){
+  const ring = $("ringDone");
+  ring.classList.toggle("done", !skipped);
+  ring.querySelector(".f").style.strokeDashoffset = CIRC;
+  ring.querySelector("[data-reps]").textContent = skipped ? reps : GOAL;
+  requestAnimationFrame(() => requestAnimationFrame(() => {
+    ring.querySelector(".f").style.strokeDashoffset = skipped ? (CIRC * (1 - Math.min(1, reps / GOAL))).toFixed(2) : 0;
+  }));
+  $("doneStatus").textContent = skipped ? "Skipped" : "Unlocked";
+  $("doneTitle").textContent = skipped ? "Skipped today." : "Done for today.";
+  $("doneMsg").textContent = skipped ? "Your streak resets. Tomorrow's a new 100." : `${GOAL} push-ups logged. Your apps are open until tomorrow.`;
+  renderWeek($("week2")); renderStreak($("streakN2"), $("streakU2"));
+}
+
+function boot(){
+  const h = getHist()[today()];
+  if (h === "done" || reps >= GOAL){ if (h !== "done") mark("done"); renderDone(false); show("done"); }
+  else if (h === "skipped"){ renderDone(true); show("done"); }
+  else { renderStart(); show("start"); }
+}
+boot();
+
+// ---------- audio ----------
+let audio = null;
+function beep(freq = 880, dur = .08, vol = .15){
   if (!audio) return;
   const o = audio.createOscillator(), g = audio.createGain();
-  o.frequency.value = freq; g.gain.value = .15;
-  o.connect(g).connect(audio.destination); o.start(); o.stop(audio.currentTime + dur);
-}
-function hint(msg){ $("hint").hidden = !msg; $("hint").textContent = msg || ""; }
-
-function angle(a,b,c){ // angle at b in degrees, pixel space
-  const v1=[a.x-b.x,a.y-b.y], v2=[c.x-b.x,c.y-b.y];
-  const cos=(v1[0]*v2[0]+v1[1]*v2[1])/(Math.hypot(...v1)*Math.hypot(...v2)||1);
-  return Math.acos(Math.max(-1,Math.min(1,cos)))*180/Math.PI;
+  o.type = "sine"; o.frequency.value = freq;
+  g.gain.setValueAtTime(vol, audio.currentTime);
+  g.gain.exponentialRampToValueAtTime(.0001, audio.currentTime + dur);
+  o.connect(g).connect(audio.destination); o.start(); o.stop(audio.currentTime + dur + .02);
 }
 
-$("start").onclick = async () => {
-  $("err").hidden = true;
-  $("start").disabled = true; $("start").textContent = "Loading…";
+// ---------- wake lock ----------
+let wakeLock = null;
+async function lockScreen(){ try { wakeLock = await navigator.wakeLock?.request("screen"); } catch {} }
+document.addEventListener("visibilitychange", () => { if (document.visibilityState === "visible" && running) lockScreen(); });
+
+// ---------- camera + model ----------
+let landmarker = null, stream = null, running = false, paused = false, phase = "up", smooth = null;
+
+$("startBtn").onclick = async () => {
+  const btn = $("startBtn");
+  $("err").hidden = true; btn.disabled = true; btn.textContent = "Loading camera…";
   try {
-    audio = new (window.AudioContext||window.webkitAudioContext)();
-    const stream = await navigator.mediaDevices.getUserMedia({ video:{ facingMode:"user", width:{ideal:640}, height:{ideal:480} }, audio:false });
+    audio = audio || new (window.AudioContext || window.webkitAudioContext)();
+    audio.resume?.();
+    stream = await navigator.mediaDevices.getUserMedia({ video: { facingMode: "user", width: { ideal: 640 }, height: { ideal: 480 } }, audio: false });
     video.srcObject = stream; await video.play();
-    const { FilesetResolver, PoseLandmarker } = await import("https://cdn.jsdelivr.net/npm/@mediapipe/tasks-vision@0.10.14/vision_bundle.mjs");
-    const fileset = await FilesetResolver.forVisionTasks("https://cdn.jsdelivr.net/npm/@mediapipe/tasks-vision@0.10.14/wasm");
-    landmarker = await PoseLandmarker.createFromOptions(fileset, {
-      baseOptions:{ modelAssetPath:"https://storage.googleapis.com/mediapipe-models/pose_landmarker/pose_landmarker_lite/float16/1/pose_landmarker_lite.task", delegate:"GPU" },
-      runningMode:"VIDEO", numPoses:1
-    });
-    try { wakeLock = await navigator.wakeLock?.request("screen"); } catch {}
-    $("intro").hidden = true; $("start").hidden = true;
-    running = true; loop();
+    if (!landmarker){
+      btn.textContent = "Loading pose model…";
+      const { FilesetResolver, PoseLandmarker } = await import(`${MP}/vision_bundle.mjs`);
+      const fileset = await FilesetResolver.forVisionTasks(`${MP}/wasm`);
+      const opts = d => ({ baseOptions: { modelAssetPath: MODEL, delegate: d }, runningMode: "VIDEO", numPoses: 1 });
+      try { landmarker = await PoseLandmarker.createFromOptions(fileset, opts("GPU")); }
+      catch { landmarker = await PoseLandmarker.createFromOptions(fileset, opts("CPU")); }
+    }
+    await lockScreen();
+    phase = "up"; smooth = null;
+    setRing($("ringWork"), reps); setCue("idle", "Get in position");
+    show("workout");
+    running = true; paused = false; $("paused").hidden = true;
+    requestAnimationFrame(loop);
   } catch (e) {
-    $("start").disabled = false; $("start").textContent = "Start camera";
+    stopCamera();
     $("err").hidden = false;
-    $("err").textContent = e.name === "NotAllowedError"
-      ? "Camera access was blocked. Allow the camera for this site in Settings › Safari › Camera, then try again."
-      : "Couldn't start: " + (e.message || e) + ". This page needs to be opened from an https:// address.";
+    $("err").textContent = e?.name === "NotAllowedError"
+      ? "Camera access is blocked. Turn it on in Settings › Safari › Camera, then tap Start again."
+      : `Couldn't start the camera (${e?.message || e}). Open this page from its https:// address and try again.`;
+  } finally {
+    btn.disabled = false; renderStart();
   }
 };
 
-$("reset").onclick = () => { reps = 0; store.set(0); render(); };
-
-// Skip: three escalating confirmations, then the same unlock as finishing
-const ASKS = [
-  ["Are you sure?", "Yes, skip"],
-  ["Are you really sure?", "Yes, really"],
-  ["Are you super positive???", "Super positive. Unlock."]
-];
-let step = 0;
-function showAsk(){
-  $("confirm").hidden = false;
-  $("confirm").className = "confirm s" + (step+1);
-  $("confirmQ").textContent = ASKS[step][0];
-  $("yes").textContent = ASKS[step][1];
-  $("skip").hidden = true;
+function stopCamera(){
+  running = false;
+  stream?.getTracks().forEach(t => t.stop()); stream = null; video.srcObject = null;
+  wakeLock?.release?.(); wakeLock = null;
 }
-$("skip").onclick = () => { step = 0; showAsk(); };
-$("no").onclick = () => { step = 0; $("confirm").hidden = true; render(); };
-$("yes").onclick = () => {
-  if (++step < ASKS.length) return showAsk();
-  $("confirm").hidden = true; $("skip").hidden = true;
-  $("pill").textContent = "Skipped"; $("pill").className = "pill open";
-  $("state").textContent = "Skipped today";
-  $("unlock").hidden = false;
-  location.href = "shortcuts://run-shortcut?name=Pushups%20Done";
-};
+
+$("pauseBtn").onclick = () => { paused = true; $("paused").hidden = false; };
+$("resumeBtn").onclick = () => { paused = false; $("paused").hidden = true; phase = "up"; smooth = null; requestAnimationFrame(loop); };
+$("exitBtn").onclick = () => { stopCamera(); renderStart(); show("start"); };
+
+// meter markers
+const ANG_MIN = 60, ANG_MAX = 175;
+const pct = a => Math.max(0, Math.min(100, (a - ANG_MIN) / (ANG_MAX - ANG_MIN) * 100));
+$("mkDown").style.left = pct(DOWN_ANGLE) + "%"; $("mkUp").style.left = pct(UP_ANGLE) + "%";
+
+function setCue(kind, text){ const c = $("cue"); c.className = "cue " + kind; c.textContent = text; }
+function hint(msg){ $("hint").hidden = !msg; if (msg) $("hint").textContent = msg; }
+
+function angle(a, b, c){
+  const v1 = [a.x - b.x, a.y - b.y], v2 = [c.x - b.x, c.y - b.y];
+  const cos = (v1[0]*v2[0] + v1[1]*v2[1]) / (Math.hypot(...v1) * Math.hypot(...v2) || 1);
+  return Math.acos(Math.max(-1, Math.min(1, cos))) * 180 / Math.PI;
+}
 
 let lastT = -1;
 function loop(){
-  if (!running) return;
+  if (!running || paused) return;
   const t = performance.now();
   if (video.readyState >= 2 && t !== lastT){
     lastT = t;
     const W = canvas.width = video.videoWidth, H = canvas.height = video.videoHeight;
     const res = landmarker.detectForVideo(video, t);
-    ctx.clearRect(0,0,W,H);
+    ctx.clearRect(0, 0, W, H);
     const lm = res.landmarks?.[0];
-    if (!lm) { hint("Can't see you. Back up so your whole body is in frame."); }
+    if (!lm){ hint("Can't see you. Back up so your whole body is in frame."); setCue("idle", "Get in position"); }
     else process(lm, W, H);
   }
-  requestAnimationFrame(loop);
+  if (running && !paused) requestAnimationFrame(loop);
+}
+
+function drawSkeleton(pts, color){
+  const [sh, el, wr, hip] = pts;
+  ctx.lineCap = "round"; ctx.lineJoin = "round";
+  ctx.shadowColor = color; ctx.shadowBlur = 18;
+  ctx.strokeStyle = color; ctx.lineWidth = 8;
+  ctx.beginPath(); ctx.moveTo(hip.x, hip.y); ctx.lineTo(sh.x, sh.y); ctx.lineTo(el.x, el.y); ctx.lineTo(wr.x, wr.y); ctx.stroke();
+  ctx.shadowBlur = 0;
+  for (const p of pts){
+    ctx.fillStyle = "#ffffff"; ctx.beginPath(); ctx.arc(p.x, p.y, 8, 0, Math.PI * 2); ctx.fill();
+    ctx.fillStyle = color;     ctx.beginPath(); ctx.arc(p.x, p.y, 4, 0, Math.PI * 2); ctx.fill();
+  }
 }
 
 function process(lm, W, H){
-  const P = i => ({ x: lm[i].x*W, y: lm[i].y*H, v: lm[i].visibility ?? 1 });
-  // choose the side facing the camera
-  const L = [11,13,15,23].map(P), R = [12,14,16,24].map(P);
-  const visL = L.reduce((s,p)=>s+p.v,0), visR = R.reduce((s,p)=>s+p.v,0);
-  const [sh, el, wr, hip] = visL >= visR ? L : R;
+  const P = i => ({ x: lm[i].x * W, y: lm[i].y * H, v: lm[i].visibility ?? 1 });
+  const L = [11, 13, 15, 23].map(P), R = [12, 14, 16, 24].map(P);
+  const pts = L.reduce((s, p) => s + p.v, 0) >= R.reduce((s, p) => s + p.v, 0) ? L : R;
+  const [sh, el, wr, hip] = pts;
 
-  // draw skeleton
-  ctx.lineWidth = 6; ctx.lineCap = "round";
-  ctx.strokeStyle = phase === "down" ? "#ffb020" : "#3ddc84";
-  ctx.beginPath(); ctx.moveTo(hip.x,hip.y); ctx.lineTo(sh.x,sh.y); ctx.lineTo(el.x,el.y); ctx.lineTo(wr.x,wr.y); ctx.stroke();
-  ctx.fillStyle = "#eef2f4";
-  [sh,el,wr,hip].forEach(p=>{ ctx.beginPath(); ctx.arc(p.x,p.y,7,0,7); ctx.fill(); });
+  drawSkeleton(pts, phase === "down" ? "#ff8a4c" : "#7a5cff");
 
-  if (Math.min(sh.v, el.v, wr.v, hip.v) < MIN_VIS) { hint("Turn sideways to the camera so it can see your arm and hip."); return; }
+  if (Math.min(sh.v, el.v, wr.v, hip.v) < MIN_VIS){ hint("Turn sideways so the camera sees your arm and hip."); setCue("idle", "Turn sideways"); return; }
 
-  const tilt = Math.abs(Math.atan2(sh.y-hip.y, sh.x-hip.x)*180/Math.PI);
-  const bodyTilt = Math.min(tilt, 180-tilt);
-  if (bodyTilt > MAX_BODY_TILT) { hint("Get into push-up position."); $("state").textContent = "Not in position"; return; }
+  const tilt = Math.abs(Math.atan2(sh.y - hip.y, sh.x - hip.x) * 180 / Math.PI);
+  if (Math.min(tilt, 180 - tilt) > MAX_BODY_TILT){ hint(""); setCue("idle", "Get in position"); return; }
 
   const a = angle(sh, el, wr);
-  smooth = smooth == null ? a : smooth*0.6 + a*0.4;
+  smooth = smooth == null ? a : smooth * 0.6 + a * 0.4;
   hint("");
+  $("angleChip").textContent = Math.round(smooth) + "°";
+  $("meterFill").style.width = pct(smooth) + "%";
 
   if (reps >= GOAL) return;
-  if (phase === "up" && smooth < DOWN_ANGLE) { phase = "down"; beep(440,.05); }
-  else if (phase === "down" && smooth > UP_ANGLE) {
-    phase = "up"; reps++; store.set(reps); beep(reps>=GOAL?1320:880);
-    render();
-    if (reps >= GOAL) { beep(1760,.3); running = false; video.srcObject?.getTracks().forEach(t=>t.stop()); wakeLock?.release?.(); }
+  if (phase === "up" && smooth < DOWN_ANGLE){ phase = "down"; beep(440, .05, .1); }
+  else if (phase === "down" && smooth > UP_ANGLE){
+    phase = "up"; reps++; setReps(reps);
+    const ring = $("ringWork"); setRing(ring, reps);
+    if (!reduceMotion){ ring.classList.remove("pop"); void ring.offsetWidth; ring.classList.add("pop"); }
+    if (reps >= GOAL) return finish();
+    reps % 10 === 0 ? beep(1320, .14) : beep(880);
   }
-  if (reps < GOAL) $("state").textContent = (phase === "down" ? "Push up" : "Go down") + " · " + Math.round(smooth) + "°";
+  setCue(phase === "down" ? "down" : "up", phase === "down" ? "Push up" : "Go down");
 }
+
+function finish(){
+  beep(1320, .12); setTimeout(() => beep(1760, .35), 140);
+  navigator.vibrate?.([60, 40, 120]);
+  stopCamera(); mark("done");
+  renderDone(false); show("done");
+}
+
+// ---------- skip sheet ----------
+const ASKS = [
+  ["Are you sure?", "Skipping unlocks your apps and breaks your streak.", "Yes, skip"],
+  ["Are you really sure?", `You're ${GOAL} push-ups away. That's about five minutes.`, "Yes, really"],
+  ["Are you super positive???", "Last chance. Your streak goes back to zero.", "Super positive. Unlock."]
+];
+let step = 0;
+function openSheet(){
+  step = 0; paint();
+  $("scrim").hidden = false; $("sheet").hidden = false;
+  requestAnimationFrame(() => { $("scrim").classList.add("on"); $("sheet").classList.add("on"); $("noBtn").focus(); });
+}
+function closeSheet(){
+  $("scrim").classList.remove("on"); $("sheet").classList.remove("on");
+  setTimeout(() => { $("scrim").hidden = true; $("sheet").hidden = true; }, reduceMotion ? 0 : 350);
+}
+function paint(){
+  const [q, sub, yes] = ASKS[step];
+  $("sheet").dataset.step = step + 1;
+  $("sheetQ").textContent = q; $("sheetSub").textContent = sub; $("yesBtn").textContent = yes;
+}
+$("skipBtn").onclick = openSheet;
+$("noBtn").onclick = closeSheet;
+$("scrim").onclick = closeSheet;
+document.addEventListener("keydown", e => { if (e.key === "Escape" && !$("sheet").hidden) closeSheet(); });
+$("yesBtn").onclick = () => {
+  if (++step < ASKS.length) return paint();
+  closeSheet(); mark("skipped");
+  renderDone(true); show("done");
+  location.href = UNLOCK_URL;
+};
+
+// New day while the page sits open in the morning
+setInterval(() => { if (!running && getReps() !== reps){ reps = getReps(); boot(); } }, 60_000);
 </script>
 </body>
 </html>
