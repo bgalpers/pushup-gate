@@ -335,7 +335,9 @@ const reduceMotion = matchMedia("(prefers-reduced-motion: reduce)").matches;
 
 // ---------- storage ----------
 const dkey = d => d.toLocaleDateString("en-CA");          // yyyy-mm-dd, local
-const today = () => dkey(new Date());
+const RESET_HOUR = 5;                                     // the day rolls over at 5 AM
+const gateNow = () => new Date(Date.now() - RESET_HOUR * 3600_000);
+const today = () => dkey(gateNow());
 const read = (k, f) => { try { return JSON.parse(localStorage.getItem(k)) ?? f; } catch { return f; } };
 const write = (k, v) => { try { localStorage.setItem(k, JSON.stringify(v)); } catch {} };
 const getReps = () => { const s = read("pushupGate", {}); return s.date === today() ? (s.reps|0) : 0; };
@@ -344,7 +346,7 @@ const getHist = () => read("pushupHistory", {});
 const mark = v => { const h = getHist(); h[today()] = v; write("pushupHistory", h); };
 
 function streak(){
-  const h = getHist(), d = new Date();
+  const h = getHist(), d = gateNow();
   if (!h[dkey(d)]) d.setDate(d.getDate() - 1);   // today still open: count from yesterday
   let n = 0;
   while (h[dkey(d)] === "done") { n++; d.setDate(d.getDate() - 1); }
@@ -364,7 +366,7 @@ $("goalH").textContent = GOAL;
 const CHECK = '<svg viewBox="0 0 14 14" fill="none"><path d="M3 7.5l2.5 2.5L11 4.5" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>';
 const SLASH = '<svg viewBox="0 0 14 14" fill="none"><path d="M4 10L10 4" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg>';
 function renderWeek(el){
-  const h = getHist(), now = new Date(), t = today();
+  const h = getHist(), now = gateNow(), t = today();
   const mon = new Date(now); mon.setDate(now.getDate() - ((now.getDay() + 6) % 7));
   let html = "";
   for (let i = 0; i < 7; i++){
